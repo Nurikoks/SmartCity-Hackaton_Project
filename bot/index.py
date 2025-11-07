@@ -1,6 +1,3 @@
-﻿# =======================================================
-# БЛОК 1: КОНФИГУРАЦИЯ И ПРОМПТ
-# =======================================================
 import os
 import re
 import math
@@ -8,7 +5,7 @@ import json
 import pandas as pd
 from typing import List, Tuple
 
-# ---- ИМПОРТЫ ДЛЯ RAG (Chroma + SentenceTransformer) ----
+#ИМПОРТЫ ДЛЯ RAG (Chroma + SentenceTransformer) 
 try:
     from langchain_community.vectorstores import Chroma
     from langchain_community.embeddings.sentence_transformer import SentenceTransformerEmbeddings
@@ -18,7 +15,7 @@ except Exception as e:
     print(f"⚠️ Ошибка импорта RAG библиотек: {e}")
     HAS_RAG_LIBS = False
 
-# ---- ИМПОРТ ДЛЯ GEMINI (LLM) ----
+#ИМПОРТ ДЛЯ GEMINI (LLM)
 try:
     import google.generativeai as genai
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -34,9 +31,9 @@ except ImportError:
 # Настройки RAG
 VECTOR_DB_PATH = "./chroma_db"
 CLEAN_DATA_PATH = "data/gis_clean.csv"
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # Быстрый и эффективный s-t
+EMBEDDING_MODEL = "all-MiniLM-L6-v2" 
 
-# Ваш УСИЛЕННЫЙ SYSTEM_PROMPT (КРИТИЧЕСКИЙ ЭЛЕМЕНТ!)
+#SYSTEM_PROMPT 
 SYSTEM_PROMPT = """
 Ты — дружелюбный эксперт-гид по прогулкам в городе Астана. 
 Твоя цель — дать пользователю 1-3 самых релевантных, конкретных и вдохновляющих рекомендаций.
@@ -57,10 +54,6 @@ SYSTEM_PROMPT = """
    - Ясно укажи, какие ФИЛЬТРЫ были использованы (локация, категория).
    - Избегай уверенных утверждений о доступности ('открыто сейчас'), если данных нет.
 """
-
-# =======================================================
-# БЛОК 2: ЛОГИКА ФИЛЬТРАЦИИ И ПОИСКА (RETRIEVER)
-# =======================================================
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Расчет расстояния между двумя точками на Земле (в километрах)."""
@@ -130,11 +123,7 @@ def index_data_to_chroma(data_source_path: str = CLEAN_DATA_PATH):
 
     print(f"✅ Индексация {len(df)} записей завершена. База сохранена в {VECTOR_DB_PATH}.")
 
-
-# =======================================================
-# МАППИНГ ПОДРУБРИК НА КАТЕГОРИИ (по реальным данным)
-# =======================================================
-
+#МАППИНГ ПОДРУБРИК НА КАТЕГОРИИ (по реальным данным)
 SUBRUBRIKA_TO_INTENT = {
     # coffee
     "Кофейни": "coffee",
@@ -227,7 +216,6 @@ def search_poi_with_filter(
             f"Локация: ({user_lat}, {user_lon})"
         )
 
-    # Инициализируем векторное хранилище
     embeddings = SentenceTransformerEmbeddings(model_name=EMBEDDING_MODEL)
     db = Chroma(
         persist_directory=VECTOR_DB_PATH,
@@ -235,7 +223,7 @@ def search_poi_with_filter(
     )
     relevant_docs = db.similarity_search_with_score(query, k=top_k)
 
-    # ---- 1. Определяем интент по запросу ----
+    # Определяем интент по запросу
     q_lower = (query or "").lower()
     # Токены запроса: ["мне", "нужнен", "кино", "недалеко"]
     query_tokens = re.findall(r"\w+", q_lower)
@@ -276,7 +264,7 @@ def search_poi_with_filter(
             matched_intent = intent
             break
 
-    # ---- 2. Определяем категорию POI по Подрубрике ----
+    # Определяем категорию POI по Подрубрике
     def detect_poi_intent(doc):
         """
         Берём doc.metadata["Категория"], в которой лежит Подрубрика.
@@ -299,7 +287,7 @@ def search_poi_with_filter(
 
         return None
 
-    # ---- 3. Фильтрация документов ----
+    # Фильтрация документов
     # будем хранить: (distance_km, name, category, address, time)
     pois: list[tuple[float, str, str, str, str]] = []
 
@@ -331,7 +319,7 @@ def search_poi_with_filter(
 
         pois.append((distance_km, name, cat, addr, time))
 
-    # ---- 4. Обработка случая, когда ничего не найдено ----
+    # Обработка случая, когда ничего не найдено 
     if not pois:
         if matched_intent:
             return (
@@ -345,7 +333,7 @@ def search_poi_with_filter(
                 "Попробуй переформулировать запрос 🙂"
             )
 
-    # ---- 5. Сортируем и красиво форматируем для Telegram ----
+    # Сортируем и красиво форматируем для телеги
     pois.sort(key=lambda x: x[0])
     top_pois = pois[:5]
 
@@ -373,10 +361,6 @@ def search_poi_with_filter(
     pretty_text = "\n".join(lines).strip()
     return pretty_text
 
-# =======================================================
-# БЛОК 4: ФИНАЛЬНЫЙ ИНТЕРФЕЙС ДЛЯ ДБЛ-3
-# =======================================================
-
 def get_final_recommendation(user_query: str, user_lat: float, user_lon: float) -> str:
     """
     Упрощённая версия для Telegram-бота:
@@ -387,7 +371,7 @@ def get_final_recommendation(user_query: str, user_lat: float, user_lon: float) 
     return context
 
 
-# Только для локального тестирования ДБЛ-2:
+# Только для локального тестирования
 # if __name__ == "__main__":
     test_query = "мне нужна аптека недалеко"
     user_lat = 51.1095   
@@ -396,7 +380,7 @@ def get_final_recommendation(user_query: str, user_lat: float, user_lon: float) 
     print("--- ТЕСТ: ПОИСК POI ---")
     print(search_poi_with_filter(test_query, user_lat, user_lon))
 
-    # Раскомментируй один раз, когда захочешь построить векторную базу:
+    # РАССКОМЕНТИРОВАТЬ ПОСЛЕ СОЗДАНИЯ БДШКИ!!!
     # print("\n--- ТЕСТ: ИНДЕКСАЦИЯ ---")
     # index_data_to_chroma(CLEAN_DATA_PATH)
 
